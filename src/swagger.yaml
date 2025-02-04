@@ -1,0 +1,387 @@
+openapi: 3.0.0
+info:
+  title: DID Wallet API
+  version: 1.0.0
+  description: API documentation for DID Wallet backend services
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+paths:
+  /did/generate:
+    post:
+      summary: Generate a new DID
+      tags:
+        - DID
+      responses:
+        '201':
+          description: DID generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DIDResponse'
+        '500':
+          description: Server error
+
+  /did/balance/{address}:
+    get:
+      summary: Get ETH balance for an address
+      tags:
+        - DID
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Ethereum address to check balance for
+      responses:
+        '200':
+          description: Balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '400':
+          description: Invalid address
+        '500':
+          description: Server error
+
+  /did/sign:
+    post:
+      summary: Sign a message or JSON payload using DID
+      tags:
+        - DID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SignMessageRequest'
+                - $ref: '#/components/schemas/SignFeedbackRequest'
+            examples:
+              simpleMessage:
+                summary: Simple message signing
+                value:
+                  message: "Hello World"
+                  privateKey: "89896e87e9d9f119531903767412b1336e663dd0bc41e9238af8589a396c8780"
+              feedbackPayload:
+                summary: Feedback payload signing
+                value:
+                  feedback:
+                    message: "Great service!"
+                    submitterDid: "did:ethr:0x1234567890123456789012345678901234567890"
+                    receiverDid: "did:ethr:0x9876543210987654321098765432109876543210"
+                    rating: 5
+                  privateKey: "89896e87e9d9f119531903767412b1336e663dd0bc41e9238af8589a396c8780"
+      responses:
+        '200':
+          description: Message signed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignResponse'
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /did/verify:
+    post:
+      summary: Verify a signed message
+      tags:
+        - DID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+            example:
+              message: "Hello World"
+              signature: "0x1234567890..."
+              address: "0x1234567890123456789012345678901234567890"
+      responses:
+        '200':
+          description: Signature verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /feedback/submit:
+    post:
+      summary: Submit feedback with DID authentication
+      tags:
+        - Feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+                - submitterDid
+                - receiverDid
+                - rating
+                - signature
+              properties:
+                message:
+                  type: string
+                  description: Feedback message
+                submitterDid:
+                  type: string
+                  description: DID of the submitter
+                receiverDid:
+                  type: string
+                  description: DID of the receiver
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  description: Rating score (1-5)
+                signature:
+                  type: string
+                  description: Signed payload for authentication
+            example:
+              message: "Great service!"
+              submitterDid: "did:ethr:0x1234567890123456789012345678901234567890"
+              receiverDid: "did:ethr:0x9876543210987654321098765432109876543210"
+              rating: 5
+              signature: "0x1234567890..."
+      responses:
+        '201':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      transactionHash:
+                        type: string
+                      blockNumber:
+                        type: integer
+                      submitterDid:
+                        type: string
+                      receiverDid:
+                        type: string
+                      message:
+                        type: string
+                      rating:
+                        type: integer
+                      submitter:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /feedback/list:
+    get:
+      summary: Get all feedback submissions
+      tags:
+        - Feedback
+      responses:
+        '200':
+          description: List of feedback submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        submitter:
+                          type: string
+                        submitterDid:
+                          type: string
+                        receiverDid:
+                          type: string
+                        message:
+                          type: string
+                        rating:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+        '500':
+          description: Server error
+
+  /feedback/reputation/{did}:
+    get:
+      summary: Get reputation for a DID
+      tags:
+        - DID
+      parameters:
+        - in: path
+          name: did
+          required: true
+          schema:
+            type: string
+          description: DID to get reputation for
+          example: "did:ethr:0x1234567890123456789012345678901234567890"
+      responses:
+        '200':
+          description: Reputation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      did:
+                        type: string
+                      totalRating:
+                        type: string
+                      feedbackCount:
+                        type: string
+                      averageRating:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+components:
+  schemas:
+    DIDResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            did:
+              type: string
+            address:
+              type: string
+            privateKey:
+              type: string
+
+    BalanceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            address:
+              type: string
+              description: Ethereum address
+            balance:
+              type: string
+              description: Balance in ETH
+            balanceWei:
+              type: string
+              description: Balance in Wei
+
+    SignMessageRequest:
+      type: object
+      required:
+        - message
+        - privateKey
+      properties:
+        message:
+          type: string
+          description: Simple message to sign
+        privateKey:
+          type: string
+          description: Ethereum private key
+
+    SignFeedbackRequest:
+      type: object
+      required:
+        - feedback
+        - privateKey
+      properties:
+        feedback:
+          type: object
+          required:
+            - message
+            - submitterDid
+            - receiverDid
+            - rating
+          properties:
+            message:
+              type: string
+              description: Feedback message
+            submitterDid:
+              type: string
+              description: DID of the submitter
+            receiverDid:
+              type: string
+              description: DID of the receiver
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+              description: Rating score (1-5)
+        privateKey:
+          type: string
+          description: Ethereum private key
+
+    SignResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            signedMessage:
+              type: string
+            did:
+              type: string
+
+    VerifyRequest:
+      type: object
+      required:
+        - message
+        - signature
+        - address
+      properties:
+        message:
+          type: string
+          description: Original message that was signed
+        signature:
+          type: string
+          description: Message signature
+        address:
+          type: string
+          description: Ethereum address of the signer
+
+    VerifyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            isValid:
+              type: boolean
+            recoveredAddress:
+              type: string
