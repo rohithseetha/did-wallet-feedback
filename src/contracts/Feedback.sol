@@ -44,10 +44,6 @@ contract Feedback {
         require(bytes(_submitterDid).length > 0, "Submitter DID cannot be empty");
         require(bytes(_receiverDid).length > 0, "Receiver DID cannot be empty");
         require(bytes(_message).length > 0, "Message cannot be empty");
-        require(
-            !didReputations[_receiverDid].hasRatedDid[_submitterDid],
-            "Already provided feedback for this DID"
-        );
 
         feedbacks.push(
             FeedbackItem({
