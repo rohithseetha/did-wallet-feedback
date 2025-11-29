@@ -48,6 +48,139 @@ paths:
         '500':
           description: Server error
 
+  /did/register:
+    post:
+      summary: Register a new user with MetaMask address
+      tags:
+        - User
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+              properties:
+                address:
+                  type: string
+                  description: MetaMask/Ethereum address
+                profile:
+                  type: object
+                  description: Flexible key-value pairs for user profile
+                  additionalProperties: true
+            example:
+              address: "0x1234567890123456789012345678901234567890"
+              profile:
+                name: "John Doe"
+                email: "john@example.com"
+                company: "Acme Inc"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid request
+        '409':
+          description: User already exists
+        '500':
+          description: Server error
+
+  /did/user/{address}:
+    get:
+      summary: Get user by address
+      tags:
+        - User
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Ethereum address
+          example: "0x1234567890123456789012345678901234567890"
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+    put:
+      summary: Update user profile
+      tags:
+        - User
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Ethereum address
+          example: "0x1234567890123456789012345678901234567890"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  type: object
+                  description: Updated profile key-value pairs
+                  additionalProperties: true
+            example:
+              profile:
+                name: "John Updated"
+                email: "john.updated@example.com"
+                twitter: "@johnupdated"
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /did/users:
+    get:
+      summary: List all registered users with pagination
+      tags:
+        - User
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+          description: Number of users per page
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '500':
+          description: Server error
+
   /did/sign:
     post:
       summary: Sign a message or JSON payload using DID
@@ -224,6 +357,35 @@ paths:
         '500':
           description: Server error
 
+  /feedback/dids:
+    get:
+      summary: Get all unique DIDs that have participated in feedback
+      tags:
+        - Feedback
+      responses:
+        '200':
+          description: List of unique DIDs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: Total number of unique DIDs
+                      dids:
+                        type: array
+                        items:
+                          type: string
+                        description: List of unique DIDs (submitters and receivers)
+        '500':
+          description: Server error
+
   /feedback/reputation/{did}:
     get:
       summary: Get reputation for a DID
@@ -385,3 +547,70 @@ components:
               type: boolean
             recoveredAddress:
               type: string
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            did:
+              type: string
+              description: DID derived from address
+            address:
+              type: string
+              description: Ethereum address
+            profile:
+              type: object
+              description: Flexible key-value pairs for user profile
+              additionalProperties: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    UserListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            users:
+              type: array
+              items:
+                type: object
+                properties:
+                  did:
+                    type: string
+                  address:
+                    type: string
+                  profile:
+                    type: object
+                    additionalProperties: true
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+            pagination:
+              type: object
+              properties:
+                currentPage:
+                  type: integer
+                totalPages:
+                  type: integer
+                totalUsers:
+                  type: integer
+                limit:
+                  type: integer
+                hasNextPage:
+                  type: boolean
+                hasPrevPage:
+                  type: boolean

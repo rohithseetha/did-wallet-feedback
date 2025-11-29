@@ -165,6 +165,35 @@ class FeedbackController {
       });
     }
   }
+
+  async getAllDids(req, res) {
+    try {
+      const count = await this.contract.getFeedbackCount();
+      const didsSet = new Set();
+
+      for (let i = 0; i < count.toNumber(); i++) {
+        const [, submitterDid, receiverDid] = await this.contract.getFeedback(i);
+        didsSet.add(submitterDid);
+        didsSet.add(receiverDid);
+      }
+
+      const dids = Array.from(didsSet);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          count: dids.length,
+          dids
+        }
+      });
+    } catch (error) {
+      console.error('Error getting all DIDs:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = FeedbackController;

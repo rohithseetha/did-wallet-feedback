@@ -1,18 +1,19 @@
 # Use Node.js LTS version
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Create app directory
 WORKDIR /usr/src/app
 
-# Install app dependencies
+# Install app dependencies (production only)
 COPY package*.json ./
-RUN npm install
+RUN npm ci --only=production
 
 # Bundle app source
 COPY . .
 
-# Expose port
-EXPOSE 3000
+# Cloud Run uses PORT environment variable
+ENV PORT=8080
+EXPOSE 8080
 
 # Start the application
 CMD [ "npm", "start" ]
