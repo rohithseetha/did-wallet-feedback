@@ -5,8 +5,15 @@ info:
   description: API documentation for DID Wallet backend services
 
 servers:
+  - url: https://did-wallet-gateway-3vipohlg.ew.gateway.dev/api
+    description: Production API Gateway
   - url: http://localhost:3000/api
     description: Local development server
+
+security:
+  - ApiKeyAuth: []
+
+
 
 paths:
   /did/generate:
@@ -426,6 +433,12 @@ paths:
           description: Server error
 
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication
   schemas:
     DIDResponse:
       type: object

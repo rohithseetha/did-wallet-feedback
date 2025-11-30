@@ -35,13 +35,18 @@ const swaggerPath = path.join(__dirname, 'swagger.yaml');
 const swaggerDocument = YAML.load(swaggerPath);
 
 // Update Swagger server URL dynamically for Cloud Run
-if (process.env.K_SERVICE) {
-  // Running on Cloud Run
-  const serviceUrl = `https://${process.env.K_SERVICE}-${process.env.K_REVISION?.split('-')[0] || ''}.run.app`;
-  swaggerDocument.servers = [{ url: `${serviceUrl}/api`, description: 'Cloud Run' }];
-} else if (process.env.CLOUD_RUN_URL) {
-  // Custom Cloud Run URL provided
-  swaggerDocument.servers = [{ url: `${process.env.CLOUD_RUN_URL}/api`, description: 'Production' }];
+if (process.env.API_GATEWAY_URL) {
+  // Use API Gateway URL if provided
+  swaggerDocument.servers = [
+    { url: `${process.env.API_GATEWAY_URL}/api`, description: 'Production API Gateway' },
+    { url: 'http://localhost:3000/api', description: 'Local development' }
+  ];
+} else if (process.env.K_SERVICE) {
+  // Running on Cloud Run without API Gateway
+  swaggerDocument.servers = [
+    { url: 'https://did-wallet-gateway-3vipohlg.ew.gateway.dev/api', description: 'Production API Gateway' },
+    { url: 'http://localhost:3000/api', description: 'Local development' }
+  ];
 }
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

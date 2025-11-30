@@ -1,0 +1,163 @@
+swagger: "2.0"
+info:
+  title: DID Wallet API Gateway
+  description: API Gateway for DID Wallet Backend
+  version: "1.0.0"
+schemes:
+  - https
+produces:
+  - application/json
+securityDefinitions:
+  api_key:
+    type: apiKey
+    name: x-api-key
+    in: header
+security:
+  - api_key: []
+x-google-backend:
+  address: https://did-wallet-api-303704268820.europe-west1.run.app
+  deadline: 30.0
+paths:
+  /:
+    get:
+      summary: API Root
+      operationId: getRoot
+      responses:
+        200:
+          description: OK
+  /api-docs:
+    get:
+      summary: Swagger Documentation
+      operationId: getApiDocs
+      security: []
+      responses:
+        200:
+          description: OK
+  /api-docs/{path}:
+    get:
+      summary: Swagger Assets
+      operationId: getApiDocsAssets
+      security: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+  /api/did/generate:
+    post:
+      summary: Generate DID
+      operationId: generateDid
+      responses:
+        201:
+          description: Created
+  /api/did/resolve/{did}:
+    get:
+      summary: Resolve DID
+      operationId: resolveDid
+      parameters:
+        - name: did
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+  /api/did/register:
+    post:
+      summary: Register User
+      operationId: registerUser
+      responses:
+        201:
+          description: Created
+  /api/did/users:
+    get:
+      summary: List Users
+      operationId: listUsers
+      responses:
+        200:
+          description: OK
+  /api/did/user/{address}:
+    get:
+      summary: Get User
+      operationId: getUser
+      parameters:
+        - name: address
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+    put:
+      summary: Update User
+      operationId: updateUser
+      parameters:
+        - name: address
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+  /api/did/sign:
+    post:
+      summary: Sign Message
+      operationId: signMessage
+      responses:
+        200:
+          description: OK
+  /api/did/verify:
+    post:
+      summary: Verify Signature
+      operationId: verifySignature
+      responses:
+        200:
+          description: OK
+  /api/feedback:
+    get:
+      summary: Get All Feedback
+      operationId: getAllFeedback
+      responses:
+        200:
+          description: OK
+    post:
+      summary: Submit Feedback
+      operationId: submitFeedback
+      responses:
+        201:
+          description: Created
+  /api/feedback/{id}:
+    get:
+      summary: Get Feedback by ID
+      operationId: getFeedbackById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+  /api/feedback/did/{did}:
+    get:
+      summary: Get Feedback by DID
+      operationId: getFeedbackByDid
+      parameters:
+        - name: did
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: OK
+  /api/feedback/dids:
+    get:
+      summary: Get All DIDs
+      operationId: getAllDids
+      responses:
+        200:
+          description: OK
+
