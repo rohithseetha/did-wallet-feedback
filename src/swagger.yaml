@@ -385,3 +385,383 @@ components:
               type: boolean
             recoveredAddress:
               type: string
+
+  /token/balance/{address}:
+    get:
+      summary: Get token balance for an address
+      tags:
+        - Token
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Ethereum address to check balance for
+        - in: query
+          name: tokenId
+          schema:
+            type: integer
+            default: 1
+          description: Token ID (default: 1 for CENT token)
+      responses:
+        '200':
+          description: Balance retrieved successfully
+        '400':
+          description: Invalid address
+        '500':
+          description: Server error
+
+  /token/info:
+    get:
+      summary: Get token contract information
+      tags:
+        - Token
+      responses:
+        '200':
+          description: Token info retrieved successfully
+
+  /token/mint:
+    post:
+      summary: Mint tokens (requires MINTER_ROLE)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+                - tokenId
+                - amount
+              properties:
+                to:
+                  type: string
+                  description: Address to mint tokens to
+                tokenId:
+                  type: integer
+                  description: Token ID to mint
+                amount:
+                  type: string
+                  description: Amount to mint (in tokens, will be converted to wei)
+      responses:
+        '201':
+          description: Tokens minted successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/transfer:
+    post:
+      summary: Transfer tokens
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+                - tokenId
+                - amount
+              properties:
+                to:
+                  type: string
+                  description: Address to transfer tokens to
+                tokenId:
+                  type: integer
+                  description: Token ID to transfer
+                amount:
+                  type: string
+                  description: Amount to transfer (in tokens)
+      responses:
+        '200':
+          description: Tokens transferred successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /staking/stake:
+    post:
+      summary: Stake tokens
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: string
+                  description: Amount to stake (in tokens)
+      responses:
+        '201':
+          description: Tokens staked successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /staking/cooldown:
+    post:
+      summary: Start cooldown period before unstaking
+      tags:
+        - Staking
+      responses:
+        '200':
+          description: Cooldown started successfully
+        '500':
+          description: Server error
+
+  /staking/unstake:
+    post:
+      summary: Unstake tokens
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: string
+                  description: Amount to unstake (in tokens)
+      responses:
+        '200':
+          description: Tokens unstaked successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /staking/claim:
+    post:
+      summary: Claim staking rewards
+      tags:
+        - Staking
+      responses:
+        '200':
+          description: Rewards claimed successfully
+        '500':
+          description: Server error
+
+  /staking/info/{address}:
+    get:
+      summary: Get staking information for a user
+      tags:
+        - Staking
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: Staking info retrieved successfully
+        '500':
+          description: Server error
+
+  /staking/contract-info:
+    get:
+      summary: Get staking contract information
+      tags:
+        - Staking
+      responses:
+        '200':
+          description: Contract info retrieved successfully
+
+  /persona/profile:
+    post:
+      summary: Create or update profile
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Profile name
+                bio:
+                  type: string
+                  description: Profile bio
+                avatar:
+                  type: string
+                  description: Profile avatar URL
+      responses:
+        '201':
+          description: Profile created/updated successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/profile/{address}:
+    get:
+      summary: Get profile for a user
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: Profile retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/follow:
+    post:
+      summary: Follow a user
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - following
+              properties:
+                following:
+                  type: string
+                  description: Address of user to follow
+      responses:
+        '200':
+          description: User followed successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/unfollow:
+    post:
+      summary: Unfollow a user
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - following
+              properties:
+                following:
+                  type: string
+                  description: Address of user to unfollow
+      responses:
+        '200':
+          description: User unfollowed successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/verify-identity:
+    post:
+      summary: Verify user identity (requires VERIFIER_ROLE)
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user
+                - platform
+                - platformId
+                - signature
+              properties:
+                user:
+                  type: string
+                  description: User address
+                platform:
+                  type: string
+                  description: Platform name (e.g., "github", "twitter")
+                platformId:
+                  type: string
+                  description: Platform user ID
+                signature:
+                  type: string
+                  description: Verification signature
+      responses:
+        '200':
+          description: Identity verified successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/relationships/{address}:
+    get:
+      summary: Get relationships for a user
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: Relationships retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/is-following/{follower}/{following}:
+    get:
+      summary: Check if user follows another user
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: follower
+          required: true
+          schema:
+            type: string
+          description: Follower address
+        - in: path
+          name: following
+          required: true
+          schema:
+            type: string
+          description: Following address
+      responses:
+        '200':
+          description: Follow status retrieved successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error

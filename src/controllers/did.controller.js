@@ -6,10 +6,12 @@ require('dotenv').config();
 
 class DIDController {
   constructor() {
-    // Initialize the provider with Infura project ID
-    this.provider = new ethers.providers.JsonRpcProvider(
-      `https://sepolia.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
-    );
+      // Initialize the provider with Infura project ID
+      // Support both ethers v5 and v6
+      const JsonRpcProvider = ethers.providers?.JsonRpcProvider || ethers.JsonRpcProvider;
+      this.provider = new JsonRpcProvider(
+        `https://sepolia.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
+      );
     
     // Configure the resolver with explicit provider and registry
     const providerConfig = {
@@ -78,7 +80,7 @@ class DIDController {
         success: true,
         data: {
           address,
-          balance: ethers.utils.formatEther(balance),
+          balance: ethers.formatEther ? ethers.formatEther(balance) : ethers.utils.formatEther(balance),
           balanceWei: balance.toString()
         }
       });
@@ -185,7 +187,7 @@ class DIDController {
       }
 
       // Recover the address from the signature
-      const recoveredAddress = ethers.utils.verifyMessage(message, signature);
+      const recoveredAddress = ethers.verifyMessage ? ethers.verifyMessage(message, signature) : ethers.utils.verifyMessage(message, signature);
       
       // Check if the recovered address matches the provided address
       const isValid = recoveredAddress.toLowerCase() === address.toLowerCase();

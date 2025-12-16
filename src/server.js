@@ -5,6 +5,9 @@ const YAML = require('yamljs');
 const path = require('path');
 const didRoutes = require('./routes/did.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
+const tokenRoutes = require('./routes/token.routes');
+const stakingRoutes = require('./routes/staking.routes');
+const personaRoutes = require('./routes/persona.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,10 +21,13 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to DID Wallet API',
     documentation: '/api-docs',
-    version: '1.0.0',
+    version: '2.0.0',
     endpoints: {
       did: '/api/did',
-      feedback: '/api/feedback'
+      feedback: '/api/feedback',
+      token: '/api/token',
+      staking: '/api/staking',
+      persona: '/api/persona'
     }
   });
 });
@@ -32,8 +38,19 @@ const swaggerDocument = YAML.load(swaggerPath);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Routes
-app.use('/api/did', didRoutes);
+// Note: DID routes may fail to load due to dependency issues, but other routes will work
+try {
+  app.use('/api/did', didRoutes);
+  console.log('✓ DID routes loaded');
+} catch (error) {
+  console.warn('⚠️  DID routes failed to load:', error.message);
+  console.warn('   Other API endpoints are still available');
+}
+
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/token', tokenRoutes);
+app.use('/api/staking', stakingRoutes);
+app.use('/api/persona', personaRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

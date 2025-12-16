@@ -1,30 +1,28 @@
 const ethers = require('ethers');
 const FeedbackContract = require('../contracts/Feedback.json');
+const { loadContractAddresses, getProvider } = require('../utils/contract-loader');
 require('dotenv').config();
 
 class FeedbackController {
   constructor() {
     try {
-      // Validate environment variables
-      if (!process.env.FEEDBACK_CONTRACT_ADDRESS) {
-        throw new Error('FEEDBACK_CONTRACT_ADDRESS is not set in environment variables');
-      }
-
-      if (!process.env.INFURA_PROJECT_ID) {
-        throw new Error('INFURA_PROJECT_ID is not set in environment variables');
-      }
-
       if (!process.env.PRIVATE_KEY) {
         throw new Error('PRIVATE_KEY is not set in environment variables');
       }
 
-      // Initialize provider with explicit network configuration
-      this.provider = new ethers.providers.JsonRpcProvider(
-        `https://sepolia.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
-      );
+      // Load contract addresses from deployments.json
+      const contractData = loadContractAddresses();
+      this.network = contractData.network;
+      
+      if (!contractData.contracts.Feedback) {
+        throw new Error('Feedback contract address not found in deployments.json');
+      }
 
-      // Initialize contract with validated address
-      const contractAddress = ethers.utils.getAddress(process.env.FEEDBACK_CONTRACT_ADDRESS);
+      // Initialize provider
+      this.provider = getProvider(this.network);
+
+      // Initialize contract
+      const contractAddress = ethers.getAddress(contractData.contracts.Feedback);
       this.contract = new ethers.Contract(
         contractAddress,
         FeedbackContract.abi,
@@ -66,8 +64,8 @@ class FeedbackController {
       });
 
       // Verify the signature
-      const messageHash = ethers.utils.hashMessage(payload);
-      const recoveredAddress = ethers.utils.recoverAddress(messageHash, signature);
+      const messageHash = ethers.hashMessage(payload);
+      const recoveredAddress = ethers.recoverAddress(messageHash, signature);
 
       // Use the pre-initialized wallet
       const contractWithSigner = this.contract.connect(this.wallet);
@@ -107,9 +105,10 @@ class FeedbackController {
   async getFeedbacks(req, res) {
     try {
       const count = await this.contract.getFeedbackCount();
+      const countNum = Number(count); // ethers v6 compatibility
       const feedbacks = [];
 
-      for (let i = 0; i < count.toNumber(); i++) {
+      for (let i = 0; i < countNum; i++) {
         const [submitter, submitterDid, receiverDid, message, rating, timestamp] = await this.contract.getFeedback(i);
         feedbacks.push({
           submitter,
@@ -117,7 +116,7 @@ class FeedbackController {
           receiverDid,
           message,
           rating: rating.toString(),
-          timestamp: new Date(timestamp.toNumber() * 1000).toISOString()
+          timestamp: new Date(Number(timestamp) * 1000).toISOString()
         });
       }
 
@@ -154,7 +153,7 @@ class FeedbackController {
           did,
           totalRating: totalRating.toString(),
           feedbackCount: feedbackCount.toString(),
-          averageRating: (averageRating.toNumber() / 100).toFixed(2) // Convert back to decimal
+          averageRating: (Number(averageRating) / 100).toFixed(2) // Convert back to decimal
         }
       });
     } catch (error) {
