@@ -1,0 +1,66 @@
+{
+  "networks": {
+    "localhost": {
+      "chainId": 1337,
+      "contracts": {
+        "CentomilaContractV2": {
+          "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "deployedAt": "2025-12-16T16:51:05.441Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "metadataURI": "https://api.centomila.com/metadata/",
+          "transactionHash": "0x34809eae761c92e202b366f4b887c709deccf5e0611617b3e02855b8170819e5"
+        },
+        "StakingContractV2": {
+          "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+          "deployedAt": "2025-12-16T16:51:05.441Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "tokenAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "transactionHash": "0x61219de0558dbc708f28eb1ea19562d4dc75aa588e5eac5de643f8a646364b75"
+        },
+        "PersonaContractV2": {
+          "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+          "deployedAt": "2025-12-16T16:51:05.441Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "tokenAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "transactionHash": "0xd9e01196fefd58460632d9790c0f12ba4ca644fd60cb779a32129ff984c54654"
+        },
+        "Feedback": {
+          "address": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+          "deployedAt": "2025-12-16T16:51:33.274Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "transactionHash": "0xa0e53e479e1e9c51e7bd5d0616462792ac1d52bbfe0cc9ab8ec2ceae747f8b10"
+        }
+      },
+      "roles": {
+        "MINTER_ROLE": {
+          "StakingContractV2": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+          "PersonaContractV2": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+        },
+        "OPERATOR_ROLE": {
+          "PersonaContractV2": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209"
+        }
+      }
+    },
+    "fuji": {
+      "chainId": 43113,
+      "contracts": {},
+      "roles": {}
+    },
+    "avalanche": {
+      "chainId": 43114,
+      "contracts": {},
+      "roles": {}
+    },
+    "sepolia": {
+      "chainId": 11155111,
+      "contracts": {},
+      "roles": {}
+    },
+    "mainnet": {
+      "chainId": 1,
+      "contracts": {},
+      "roles": {}
+    }
+  },
+  "lastUpdated": "2025-12-16T16:51:33.274Z"
+}

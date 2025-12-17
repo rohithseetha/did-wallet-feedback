@@ -209,26 +209,222 @@ class StakingController {
     try {
       const totalStaked = await this.contract.totalStaked();
       const rewardRate = await this.contract.rewardRate();
+      const rewardPerToken = await this.contract.rewardPerToken();
       const periodFinish = await this.contract.periodFinish();
+      const rewardPool = await this.contract.rewardPool();
       const APY = await this.contract.APY();
       const MIN_LOCK_PERIOD = await this.contract.MIN_LOCK_PERIOD();
       const COOLDOWN_PERIOD = await this.contract.COOLDOWN_PERIOD();
+      const EARLY_WITHDRAWAL_PENALTY = await this.contract.EARLY_WITHDRAWAL_PENALTY();
 
       res.status(200).json({
         success: true,
         data: {
           totalStaked: ethers.formatEther(totalStaked.toString()),
           rewardRate: rewardRate.toString(),
+          rewardPerToken: ethers.formatEther(rewardPerToken.toString()),
+          rewardPool: ethers.formatEther(rewardPool.toString()),
           periodFinish: periodFinish.toString() !== '0' ? new Date(Number(periodFinish) * 1000).toISOString() : null,
           apy: APY.toString() + '%',
           minLockPeriod: MIN_LOCK_PERIOD.toString() + ' seconds',
           cooldownPeriod: COOLDOWN_PERIOD.toString() + ' seconds',
+          earlyWithdrawalPenalty: EARLY_WITHDRAWAL_PENALTY.toString() + '%',
           contractAddress: this.contract.address,
           network: this.network
         }
       });
     } catch (error) {
       console.error('Error getting contract info:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Notify reward amount (requires REWARDS_DISTRIBUTOR_ROLE)
+   * POST /api/staking/notify-reward
+   */
+  async notifyReward(req, res) {
+    try {
+      const { amount } = req.body;
+
+      if (!amount) {
+        return res.status(400).json({
+          success: false,
+          error: 'amount is required'
+        });
+      }
+
+      const contractWithSigner = this.contract.connect(this.wallet);
+      const tx = await contractWithSigner.notifyRewardAmount(ethers.parseEther(amount.toString()));
+      const receipt = await tx.wait();
+
+      const rewardPool = await this.contract.rewardPool();
+      const rewardRate = await this.contract.rewardRate();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          amount: amount.toString(),
+          rewardPool: ethers.formatEther(rewardPool.toString()),
+          rewardRate: rewardRate.toString(),
+          notifiedBy: this.wallet.address
+        }
+      });
+    } catch (error) {
+      console.error('Error notifying reward:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Set reward duration (requires OPERATOR_ROLE)
+   * POST /api/staking/set-reward-duration
+   */
+  async setRewardDuration(req, res) {
+    try {
+      const { duration } = req.body; // Duration in seconds
+
+      if (!duration) {
+        return res.status(400).json({
+          success: false,
+          error: 'duration (in seconds) is required'
+        });
+      }
+
+      const contractWithSigner = this.contract.connect(this.wallet);
+      const tx = await contractWithSigner.setRewardDuration(parseInt(duration));
+      const receipt = await tx.wait();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          duration: parseInt(duration),
+          durationDays: (parseInt(duration) / 86400).toFixed(2),
+          setBy: this.wallet.address
+        }
+      });
+    } catch (error) {
+      console.error('Error setting reward duration:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Grant role (requires DEFAULT_ADMIN_ROLE)
+   * POST /api/staking/grant-role
+   */
+  async grantRole(req, res) {
+    try {
+      const { role, account } = req.body;
+
+      if (!role || !account) {
+        return res.status(400).json({
+          success: false,
+          error: 'role and account are required'
+        });
+      }
+
+      const contractWithSigner = this.contract.connect(this.wallet);
+      const tx = await contractWithSigner.grantRole(role, account);
+      const receipt = await tx.wait();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          role,
+          account,
+          grantedBy: this.wallet.address
+        }
+      });
+    } catch (error) {
+      console.error('Error granting role:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Revoke role (requires DEFAULT_ADMIN_ROLE)
+   * POST /api/staking/revoke-role
+   */
+  async revokeRole(req, res) {
+    try {
+      const { role, account } = req.body;
+
+      if (!role || !account) {
+        return res.status(400).json({
+          success: false,
+          error: 'role and account are required'
+        });
+      }
+
+      const contractWithSigner = this.contract.connect(this.wallet);
+      const tx = await contractWithSigner.revokeRole(role, account);
+      const receipt = await tx.wait();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          role,
+          account,
+          revokedBy: this.wallet.address
+        }
+      });
+    } catch (error) {
+      console.error('Error revoking role:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Check if address has role
+   * GET /api/staking/has-role/:role/:address
+   */
+  async hasRole(req, res) {
+    try {
+      const { role, address } = req.params;
+
+      if (!role || !address) {
+        return res.status(400).json({
+          success: false,
+          error: 'role and address are required'
+        });
+      }
+
+      const hasRole = await this.contract.hasRole(role, address);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          role,
+          address,
+          hasRole
+        }
+      });
+    } catch (error) {
+      console.error('Error checking role:', error);
       res.status(500).json({
         success: false,
         error: error.message

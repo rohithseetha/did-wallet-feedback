@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
   title: DID Wallet API
-  version: 1.0.0
-  description: API documentation for DID Wallet backend services
+  version: 2.0.0
+  description: API documentation for DID Wallet backend services with Token Economy, Staking, and Persona features
 
 servers:
   - url: http://localhost:3000/api
@@ -487,6 +487,148 @@ components:
         '500':
           description: Server error
 
+  /token/batch-mint:
+    post:
+      summary: Batch mint multiple token IDs (requires MINTER_ROLE)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+                - tokenIds
+                - amounts
+              properties:
+                to:
+                  type: string
+                  description: Address to mint tokens to
+                tokenIds:
+                  type: array
+                  items:
+                    type: integer
+                  description: Array of token IDs to mint
+                amounts:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of amounts to mint (must match tokenIds length)
+      responses:
+        '201':
+          description: Tokens batch minted successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/burn:
+    post:
+      summary: Burn CENT tokens (reduce supply)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: string
+                  description: Amount of CENT tokens to burn
+      responses:
+        '200':
+          description: Tokens burned successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/batch-burn:
+    post:
+      summary: Batch burn multiple token IDs
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tokenIds
+                - amounts
+              properties:
+                tokenIds:
+                  type: array
+                  items:
+                    type: integer
+                  description: Array of token IDs to burn
+                amounts:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of amounts to burn (must match tokenIds length)
+      responses:
+        '200':
+          description: Tokens batch burned successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/set-max-supply:
+    post:
+      summary: Set maximum token supply (requires ADMIN_ROLE)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - maxSupply
+              properties:
+                maxSupply:
+                  type: string
+                  description: Maximum supply cap in tokens
+      responses:
+        '200':
+          description: Max supply set successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/pause:
+    post:
+      summary: Pause token contract (requires PAUSER_ROLE)
+      tags:
+        - Token
+      responses:
+        '200':
+          description: Contract paused successfully
+        '500':
+          description: Server error
+
+  /token/unpause:
+    post:
+      summary: Unpause token contract (requires PAUSER_ROLE)
+      tags:
+        - Token
+      responses:
+        '200':
+          description: Contract unpaused successfully
+        '500':
+          description: Server error
+
   /staking/stake:
     post:
       summary: Stake tokens
@@ -585,6 +727,31 @@ components:
       responses:
         '200':
           description: Contract info retrieved successfully
+
+  /staking/notify-reward:
+    post:
+      summary: Notify reward amount and update reward rate (requires REWARDS_DISTRIBUTOR_ROLE)
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: string
+                  description: Reward amount to deposit (in tokens)
+      responses:
+        '200':
+          description: Reward notified successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
 
   /persona/profile:
     post:
@@ -763,5 +930,185 @@ components:
           description: Follow status retrieved successfully
         '400':
           description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/following/{address}:
+    get:
+      summary: Get list of addresses a user is following
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: Following list retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/followers/{address}:
+    get:
+      summary: Get list of addresses following a user
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: Followers list retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/user-relationships/{address}:
+    get:
+      summary: Get user relationship token IDs
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: false
+          schema:
+            type: string
+          description: User address (optional, defaults to wallet address)
+      responses:
+        '200':
+          description: User relationships retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/relationship/{tokenId}:
+    get:
+      summary: Get relationship details by token ID
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: tokenId
+          required: true
+          schema:
+            type: string
+          description: Relationship token ID
+      responses:
+        '200':
+          description: Relationship retrieved successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/relationship:
+    post:
+      summary: Create a relationship between two users (requires OPERATOR_ROLE)
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user1
+                - user2
+                - totalSupply
+                - relationshipType
+              properties:
+                user1:
+                  type: string
+                  description: First user address
+                user2:
+                  type: string
+                  description: Second user address
+                totalSupply:
+                  type: string
+                  description: Total supply for the relationship (must be even for 50/50 split)
+                relationshipType:
+                  type: integer
+                  enum: [0, 1, 2]
+                  description: Relationship type (0=Follow, 1=Mutual, 2=Partnership)
+      responses:
+        '201':
+          description: Relationship created successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/update-reputation:
+    post:
+      summary: Update reputation score for a relationship (requires OPERATOR_ROLE)
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tokenId
+                - newScore
+              properties:
+                tokenId:
+                  type: string
+                  description: Relationship token ID
+                newScore:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: New reputation score (0-100)
+      responses:
+        '200':
+          description: Reputation updated successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/identity-verified/{address}/{platform}:
+    get:
+      summary: Check if a user's identity is verified for a platform
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: User address
+        - in: path
+          name: platform
+          required: true
+          schema:
+            type: string
+          description: Platform name (e.g., "github", "twitter")
+      responses:
+        '200':
+          description: Identity verification status retrieved successfully
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/constants:
+    get:
+      summary: Get contract constants
+      tags:
+        - Persona
+      responses:
+        '200':
+          description: Constants retrieved successfully
         '500':
           description: Server error
