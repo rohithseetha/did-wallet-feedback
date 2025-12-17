@@ -197,6 +197,9 @@ npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox @nomicfoundation
 
 ### Core functionality
 
+
+
+
 #### A. DID management (`/api/did`)
 1. Generate DID (`POST /generate`)
    - Creates a new Ethereum wallet
@@ -303,3 +306,13 @@ Swagger UI at `/api-docs` with:
 - Blockchain-based review systems
 
 This is a functional DID-based feedback system that combines decentralized identity with on-chain reputation tracking.
+
+
+
+./deploy-to-fuji.sh
+
+MAIN_PRIVATE_KEY="0x..." MAIN_PUBLIC_KEY="0x..." NETWORK=fuji npm start
+
+MAIN_PRIVATE_KEY="0x..." MAIN_PUBLIC_KEY="0x..." NETWORK=fuji node test-fuji-testnet.js
+
+

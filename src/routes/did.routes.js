@@ -5,19 +5,32 @@ const router = express.Router();
 // Lazy load DID controller to handle dependency issues gracefully
 let didController = null;
 let didControllerError = null;
+let lastInitAttempt = 0;
+const RETRY_INTERVAL = 5000; // Retry initialization every 5 seconds if it failed
 
 function getDIDController() {
+  // If we have a controller, return it
   if (didController) return didController;
-  if (didControllerError) throw didControllerError;
   
+  // If we had an error recently, don't retry too often
+  const now = Date.now();
+  if (didControllerError && (now - lastInitAttempt) < RETRY_INTERVAL) {
+    throw didControllerError;
+  }
+  
+  // Try to initialize
   try {
     const DIDController = require('../controllers/did.controller');
     didController = new DIDController();
+    didControllerError = null; // Clear any previous error
+    lastInitAttempt = now;
     return didController;
   } catch (error) {
     didControllerError = error;
+    lastInitAttempt = now;
     console.warn('⚠️  DID Controller failed to initialize:', error.message);
     console.warn('   DID endpoints will return errors. Other endpoints are unaffected.');
+    console.warn('   Will retry initialization in 5 seconds...');
     throw error;
   }
 }

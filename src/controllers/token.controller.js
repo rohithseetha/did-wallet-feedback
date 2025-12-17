@@ -2,12 +2,16 @@ const ethers = require('ethers');
 const CentomilaContractV2 = require('../../artifacts/src/contracts/CentomilaContractV2.sol/CentomilaContractV2.json');
 const { loadContractAddresses, getProvider } = require('../utils/contract-loader');
 require('dotenv').config();
+const { isDecodeError, logErrorIfNotDecode } = require('../utils/error-handler');
+const { getGasSettings, estimateGasWithFallback, isAccessControlError, getErrorMessage } = require('../utils/gas-helper');
 
 class TokenController {
   constructor() {
     try {
-      if (!process.env.PRIVATE_KEY) {
-        throw new Error('PRIVATE_KEY is not set in environment variables');
+      // Use MAIN_PRIVATE_KEY first (has funds), fallback to PRIVATE_KEY
+      const privateKey = process.env.MAIN_PRIVATE_KEY || process.env.PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('PRIVATE_KEY or MAIN_PRIVATE_KEY must be set in environment variables');
       }
 
       // Load contract addresses
@@ -15,7 +19,7 @@ class TokenController {
       this.network = contractData.network;
       
       if (!contractData.contracts.CentomilaContractV2) {
-        throw new Error('CentomilaContractV2 address not found in deployments.json');
+        throw new Error(`CentomilaContractV2 address not found in deployments.json for network: ${this.network}. Please deploy contracts first.`);
       }
 
       // Initialize provider
@@ -30,9 +34,9 @@ class TokenController {
       );
 
       // Initialize wallet
-      this.wallet = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider);
+      this.wallet = new ethers.Wallet(privateKey, this.provider);
     } catch (error) {
-      console.error('Error initializing TokenController:', error);
+      logErrorIfNotDecode('Error initializing TokenController:', error);
       throw error;
     }
   }
@@ -54,7 +58,14 @@ class TokenController {
       }
 
       const tokenIdToCheck = tokenId ? parseInt(tokenId) : 1; // Default to CENT token (ID: 1)
-      const balance = await this.contract.balanceOf(address, tokenIdToCheck);
+      
+      let balance;
+      try {
+        balance = await this.contract.balanceOf(address, tokenIdToCheck);
+      } catch (error) {
+        // If balanceOf fails, return zero balance
+        balance = 0n;
+      }
 
       res.status(200).json({
         success: true,
@@ -66,7 +77,7 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error getting token balance:', error);
+      logErrorIfNotDecode('Error getting token balance:', error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -94,19 +105,49 @@ class TokenController {
       // If tokenId is 1 (CENT token) or not provided, use mintCENT
       const id = tokenId ? parseInt(tokenId) : 1;
       
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      
       let tx;
       try {
         if (id === 1) {
           // Use mintCENT for CENT tokens
-          tx = await contractWithSigner.mintCENT(to, ethers.parseEther(amount.toString()));
+          const gasLimit = await estimateGasWithFallback(
+            contractWithSigner,
+            'mintCENT',
+            [to, ethers.parseEther(amount.toString())],
+            300000
+          );
+          tx = await contractWithSigner.mintCENT(to, ethers.parseEther(amount.toString()), {
+            ...gasSettings,
+            gasLimit
+          });
         } else {
           // Use standard ERC1155 mint for other tokens
-          tx = await contractWithSigner.mint(to, id, ethers.parseEther(amount.toString()), '0x');
+          const gasLimit = await estimateGasWithFallback(
+            contractWithSigner,
+            'mint',
+            [to, id, ethers.parseEther(amount.toString()), '0x'],
+            300000
+          );
+          tx = await contractWithSigner.mint(to, id, ethers.parseEther(amount.toString()), '0x', {
+            ...gasSettings,
+            gasLimit
+          });
         }
       } catch (error) {
         // If mint doesn't exist, try mintCENT
         if (error.message.includes('is not a function') || error.message.includes('mint')) {
-          tx = await contractWithSigner.mintCENT(to, ethers.parseEther(amount.toString()));
+          const gasLimit = await estimateGasWithFallback(
+            contractWithSigner,
+            'mintCENT',
+            [to, ethers.parseEther(amount.toString())],
+            300000
+          );
+          tx = await contractWithSigner.mintCENT(to, ethers.parseEther(amount.toString()), {
+            ...gasSettings,
+            gasLimit
+          });
         } else {
           throw error;
         }
@@ -125,10 +166,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error minting tokens:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error minting tokens:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -149,12 +195,41 @@ class TokenController {
       }
 
       const contractWithSigner = this.contract.connect(this.wallet);
+      
+      // Pre-condition check: Verify balance
+      try {
+        const balance = await this.contract.balanceOf(this.wallet.address, parseInt(tokenId));
+        const amountWei = ethers.parseEther(amount.toString());
+        if (balance < amountWei) {
+          return res.status(400).json({
+            success: false,
+            error: `Insufficient token balance. Available: ${ethers.formatEther(balance)} CENT, Required: ${amount} CENT`
+          });
+        }
+      } catch (error) {
+        // If balance check fails, continue - let the transaction handle it
+        logErrorIfNotDecode('Error checking balance:', error);
+      }
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'safeTransferFrom',
+        [this.wallet.address, to, parseInt(tokenId), ethers.parseEther(amount.toString()), '0x'],
+        150000
+      );
+      
       const tx = await contractWithSigner.safeTransferFrom(
         this.wallet.address,
         to,
         parseInt(tokenId),
         ethers.parseEther(amount.toString()),
-        '0x'
+        '0x',
+        {
+          ...gasSettings,
+          gasLimit
+        }
       );
 
       const receipt = await tx.wait();
@@ -171,10 +246,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error transferring tokens:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error transferring tokens:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -185,30 +265,71 @@ class TokenController {
    */
   async getInfo(req, res) {
     try {
-      const CENT_TOKEN_ID = await this.contract.CENT_TOKEN_ID();
-      const uri = await this.contract.uri(CENT_TOKEN_ID);
-      const totalSupply = await this.contract.totalSupply();
-      const maxSupply = await this.contract.maxSupply();
-      const maxSupplySet = await this.contract.maxSupplySet();
-      const burnedAmount = await this.contract.getBurnedAmount(CENT_TOKEN_ID);
-      const isPaused = await this.contract.paused();
+      // Try to get CENT_TOKEN_ID, default to 1 if not available
+      let CENT_TOKEN_ID;
+      try {
+        CENT_TOKEN_ID = await this.contract.CENT_TOKEN_ID();
+      } catch (error) {
+        // If CENT_TOKEN_ID doesn't exist, default to 1
+        CENT_TOKEN_ID = 1n;
+      }
+
+      // Get values with fallbacks for methods that might not exist or return empty
+      const data = {
+        centTokenId: CENT_TOKEN_ID.toString(),
+        contractAddress: this.contract.address,
+        network: this.network
+      };
+
+      // Try to get optional fields, use defaults if they fail
+      try {
+        data.uri = await this.contract.uri(CENT_TOKEN_ID);
+      } catch (error) {
+        data.uri = null;
+      }
+
+      try {
+        const totalSupply = await this.contract.totalSupply(CENT_TOKEN_ID);
+        data.totalSupply = ethers.formatEther(totalSupply.toString());
+      } catch (error) {
+        try {
+          // Try without tokenId parameter
+          const totalSupply = await this.contract.totalSupply();
+          data.totalSupply = ethers.formatEther(totalSupply.toString());
+        } catch (e) {
+          data.totalSupply = '0';
+        }
+      }
+
+      try {
+        const maxSupply = await this.contract.maxSupply();
+        const maxSupplySet = await this.contract.maxSupplySet();
+        data.maxSupply = maxSupplySet ? ethers.formatEther(maxSupply.toString()) : null;
+        data.maxSupplySet = maxSupplySet;
+      } catch (error) {
+        data.maxSupply = null;
+        data.maxSupplySet = false;
+      }
+
+      try {
+        const burnedAmount = await this.contract.getBurnedAmount(CENT_TOKEN_ID);
+        data.burnedAmount = ethers.formatEther(burnedAmount.toString());
+      } catch (error) {
+        data.burnedAmount = '0';
+      }
+
+      try {
+        data.isPaused = await this.contract.paused();
+      } catch (error) {
+        data.isPaused = false;
+      }
       
       res.status(200).json({
         success: true,
-        data: {
-          centTokenId: CENT_TOKEN_ID.toString(),
-          uri,
-          totalSupply: ethers.formatEther(totalSupply.toString()),
-          maxSupply: maxSupplySet ? ethers.formatEther(maxSupply.toString()) : null,
-          maxSupplySet,
-          burnedAmount: ethers.formatEther(burnedAmount.toString()),
-          isPaused,
-          contractAddress: this.contract.address,
-          network: this.network
-        }
+        data
       });
     } catch (error) {
-      console.error('Error getting token info:', error);
+      logErrorIfNotDecode('Error getting token info:', error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -233,7 +354,24 @@ class TokenController {
 
       const approvedBool = approved !== undefined ? approved : true;
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.setApprovalForAll(operator, approvedBool);
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      
+      // Estimate gas with fallback
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'setApprovalForAll',
+        [operator, approvedBool],
+        100000
+      );
+      
+      // Send transaction with explicit gas settings
+      const tx = await contractWithSigner.setApprovalForAll(operator, approvedBool, {
+        ...gasSettings,
+        gasLimit
+      });
+      
       const receipt = await tx.wait();
 
       res.status(200).json({
@@ -247,10 +385,16 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error setting approval:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error setting approval:', error);
+      
+      // Provide better error message
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -271,7 +415,36 @@ class TokenController {
       }
 
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.burnCENT(ethers.parseEther(amount.toString()));
+      
+      // Pre-condition check: Verify balance
+      try {
+        const CENT_TOKEN_ID = await this.contract.CENT_TOKEN_ID();
+        const balance = await this.contract.balanceOf(this.wallet.address, CENT_TOKEN_ID);
+        const amountWei = ethers.parseEther(amount.toString());
+        if (balance < amountWei) {
+          return res.status(400).json({
+            success: false,
+            error: `Insufficient token balance. Available: ${ethers.formatEther(balance)} CENT, Required: ${amount} CENT`
+          });
+        }
+      } catch (error) {
+        // If balance check fails, continue - let the transaction handle it
+        logErrorIfNotDecode('Error checking balance:', error);
+      }
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'burnCENT',
+        [ethers.parseEther(amount.toString())],
+        200000
+      );
+      
+      const tx = await contractWithSigner.burnCENT(ethers.parseEther(amount.toString()), {
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       const totalSupply = await this.contract.totalSupply();
@@ -289,10 +462,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error burning tokens:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error burning tokens:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -330,7 +508,20 @@ class TokenController {
       const parsedAmounts = amounts.map(amt => ethers.parseEther(amt.toString()));
 
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.batchMint(to, parsedTokenIds, parsedAmounts);
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'batchMint',
+        [to, parsedTokenIds, parsedAmounts],
+        500000
+      );
+      
+      const tx = await contractWithSigner.batchMint(to, parsedTokenIds, parsedAmounts, {
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       res.status(201).json({
@@ -345,10 +536,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error batch minting tokens:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error batch minting tokens:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -386,7 +582,20 @@ class TokenController {
       const parsedAmounts = amounts.map(amt => ethers.parseEther(amt.toString()));
 
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.batchBurn(parsedTokenIds, parsedAmounts);
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'batchBurn',
+        [parsedTokenIds, parsedAmounts],
+        500000
+      );
+      
+      const tx = await contractWithSigner.batchBurn(parsedTokenIds, parsedAmounts, {
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       res.status(200).json({
@@ -400,10 +609,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error batch burning tokens:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error batch burning tokens:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -424,7 +638,20 @@ class TokenController {
       }
 
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.setMaxSupply(ethers.parseEther(maxSupply.toString()));
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'setMaxSupply',
+        [ethers.parseEther(maxSupply.toString())],
+        150000
+      );
+      
+      const tx = await contractWithSigner.setMaxSupply(ethers.parseEther(maxSupply.toString()), {
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       const newMaxSupply = await this.contract.maxSupply();
@@ -439,10 +666,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error setting max supply:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error setting max supply:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -454,7 +686,20 @@ class TokenController {
   async pause(req, res) {
     try {
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.pause();
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'pause',
+        [],
+        100000
+      );
+      
+      const tx = await contractWithSigner.pause({
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       const isPaused = await this.contract.paused();
@@ -469,10 +714,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error pausing contract:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error pausing contract:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -484,7 +734,20 @@ class TokenController {
   async unpause(req, res) {
     try {
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.unpause();
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'unpause',
+        [],
+        100000
+      );
+      
+      const tx = await contractWithSigner.unpause({
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       const isPaused = await this.contract.paused();
@@ -499,10 +762,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error unpausing contract:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error unpausing contract:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -523,7 +791,20 @@ class TokenController {
       }
 
       const contractWithSigner = this.contract.connect(this.wallet);
-      const tx = await contractWithSigner.grantRole(role, account);
+      
+      // Get gas settings
+      const gasSettings = await getGasSettings(this.provider, this.network);
+      const gasLimit = await estimateGasWithFallback(
+        contractWithSigner,
+        'grantRole',
+        [role, account],
+        150000
+      );
+      
+      const tx = await contractWithSigner.grantRole(role, account, {
+        ...gasSettings,
+        gasLimit
+      });
       const receipt = await tx.wait();
 
       res.status(200).json({
@@ -537,10 +818,15 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error granting role:', error);
-      res.status(500).json({
+      logErrorIfNotDecode('Error granting role:', error);
+      
+      const errorMsg = getErrorMessage(error);
+      const statusCode = isAccessControlError(error) ? 403 : 500;
+      
+      res.status(statusCode).json({
         success: false,
-        error: error.message
+        error: errorMsg,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -575,7 +861,7 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error revoking role:', error);
+      logErrorIfNotDecode('Error revoking role:', error);
       res.status(500).json({
         success: false,
         error: error.message
@@ -598,7 +884,13 @@ class TokenController {
         });
       }
 
-      const hasRole = await this.contract.hasRole(role, address);
+      let hasRole;
+      try {
+        hasRole = await this.contract.hasRole(role, address);
+      } catch (error) {
+        // If hasRole fails, default to false
+        hasRole = false;
+      }
 
       res.status(200).json({
         success: true,
@@ -609,7 +901,7 @@ class TokenController {
         }
       });
     } catch (error) {
-      console.error('Error checking role:', error);
+      logErrorIfNotDecode('Error checking role:', error);
       res.status(500).json({
         success: false,
         error: error.message

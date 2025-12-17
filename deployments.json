@@ -43,8 +43,44 @@
     },
     "fuji": {
       "chainId": 43113,
-      "contracts": {},
-      "roles": {}
+      "contracts": {
+        "CentomilaContractV2": {
+          "address": "0xb2b18a3e35D9eE110F73E9FB7cFE23d7721C9456",
+          "deployedAt": "2025-12-17T17:57:38.025Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "metadataURI": "https://api.centomila.com/metadata/",
+          "transactionHash": "0x038fb577c7d27de63f953b5d5e10f596312f2f36a19373f13c8439aca91f4b39"
+        },
+        "StakingContractV2": {
+          "address": "0xbe12f7C25D130251d986772C12e9fF2eA71045dD",
+          "deployedAt": "2025-12-17T17:57:38.025Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "tokenAddress": "0xb2b18a3e35D9eE110F73E9FB7cFE23d7721C9456",
+          "transactionHash": "0xac4b1ce884e7654063ea289a44f2eda9b5b5c469c6a5df968287ad7c2cd630d0"
+        },
+        "PersonaContractV2": {
+          "address": "0xaE0B069C86865Ad112a20adBBa68eb554F37d602",
+          "deployedAt": "2025-12-17T17:57:38.025Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "tokenAddress": "0xb2b18a3e35D9eE110F73E9FB7cFE23d7721C9456",
+          "transactionHash": "0x32c69c164c253292b198e3f91fb4e80f914b4eb5b464d5a6a39e5b29fdd750e6"
+        },
+        "Feedback": {
+          "address": "0x47a70488768F70ae009a74e9c0857Dd9CD01cf00",
+          "deployedAt": "2025-12-17T17:57:48.758Z",
+          "deployer": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209",
+          "transactionHash": "0x385baa5cc07b637118549414e468efa043458f13a7a3118225d5b5e695217966"
+        }
+      },
+      "roles": {
+        "MINTER_ROLE": {
+          "StakingContractV2": "0xbe12f7C25D130251d986772C12e9fF2eA71045dD",
+          "PersonaContractV2": "0xaE0B069C86865Ad112a20adBBa68eb554F37d602"
+        },
+        "OPERATOR_ROLE": {
+          "PersonaContractV2": "0xD20F07a5963dD8eD983DCc516D50Ad1a3dF1D209"
+        }
+      }
     },
     "avalanche": {
       "chainId": 43114,
@@ -62,5 +98,5 @@
       "roles": {}
     }
   },
-  "lastUpdated": "2025-12-16T16:51:33.274Z"
+  "lastUpdated": "2025-12-17T17:57:48.758Z"
 }

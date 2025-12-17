@@ -1,30 +1,66 @@
-const { Resolver } = require('did-resolver');
-const { getResolver } = require('ethr-did-resolver');
-const { EthrDID } = require('ethr-did');
 const { ethers } = require('ethers');
 require('dotenv').config();
+const { getProvider } = require('../utils/contract-loader');
+
+// Try to load DID dependencies, but make them optional
+let Resolver, getResolver, EthrDID;
+let didDependenciesAvailable = false;
+
+try {
+  Resolver = require('did-resolver').Resolver;
+  getResolver = require('ethr-did-resolver').getResolver;
+  EthrDID = require('ethr-did').EthrDID;
+  didDependenciesAvailable = true;
+} catch (error) {
+  console.warn('⚠️  DID dependencies not available (ethr-did, did-resolver). Basic DID operations will work without full resolver.');
+  didDependenciesAvailable = false;
+}
 
 class DIDController {
   constructor() {
-      // Initialize the provider with Infura project ID
-      // Support both ethers v5 and v6
-      const JsonRpcProvider = ethers.providers?.JsonRpcProvider || ethers.JsonRpcProvider;
-      this.provider = new JsonRpcProvider(
-        `https://sepolia.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
-      );
+    // Use shared getProvider utility to support all networks (localhost, fuji, avalanche, sepolia)
+    const networkName = process.env.NETWORK || 'localhost';
+    this.provider = getProvider(networkName);
     
-    // Configure the resolver with explicit provider and registry
-    const providerConfig = {
-      networks: [
-        {
-          name: 'sepolia',
-          provider: this.provider,
-          registry: '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b'
+    // Set registry and chain based on network
+    if (networkName === 'fuji' || networkName === 'avalanche') {
+      // Avalanche networks - use appropriate registry
+      this.registry = '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b'; // Default registry
+      this.chainNameOrId = networkName === 'fuji' ? '0xa869' : '0xa86a'; // Fuji: 43113, Mainnet: 43114
+    } else if (networkName === 'sepolia') {
+      this.registry = '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b';
+      this.chainNameOrId = 'sepolia';
+    } else {
+      // Localhost - use dummy registry
+      this.registry = '0x0000000000000000000000000000000000000000';
+      this.chainNameOrId = 'localhost';
+    }
+    
+    // Initialize resolver only if dependencies are available
+    if (didDependenciesAvailable) {
+      try {
+        if (process.env.INFURA_PROJECT_ID) {
+          const providerConfig = {
+            networks: [
+              {
+                name: 'sepolia',
+                provider: this.provider,
+                registry: this.registry
+              }
+            ]
+          };
+          this.resolver = new Resolver(getResolver(providerConfig));
+        } else {
+          // For localhost, we don't need a full resolver
+          this.resolver = null;
         }
-      ]
-    };
-    
-    this.resolver = new Resolver(getResolver(providerConfig));
+      } catch (error) {
+        console.warn('DID resolver initialization failed, continuing with basic operations:', error.message);
+        this.resolver = null;
+      }
+    } else {
+      this.resolver = null;
+    }
 
     // Bind methods to maintain 'this' context
     this.generateDID = this.generateDID.bind(this);
@@ -38,19 +74,30 @@ class DIDController {
       // Generate a new random wallet
       const wallet = ethers.Wallet.createRandom();
       
-      // Create a new EthrDID instance
-      const did = new EthrDID({
-        identifier: wallet.address,
-        privateKey: wallet.privateKey.slice(2), // Remove '0x' prefix
-        provider: this.provider,
-        registry: '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b',
-        chainNameOrId: 'sepolia'
-      });
+      // Create DID string (ethr-did format: did:ethr:address)
+      const didString = `did:ethr:${wallet.address}`;
+      
+      // If EthrDID is available, use it for full functionality
+      let didInstance = null;
+      if (didDependenciesAvailable && EthrDID) {
+        try {
+          didInstance = new EthrDID({
+            identifier: wallet.address,
+            privateKey: wallet.privateKey.slice(2), // Remove '0x' prefix
+            provider: this.provider,
+            registry: this.registry,
+            chainNameOrId: this.chainNameOrId
+          });
+        } catch (error) {
+          // If EthrDID fails, continue with basic DID string
+          console.warn('EthrDID initialization failed, using basic DID format:', error.message);
+        }
+      }
       
       res.status(201).json({
         success: true,
         data: {
-          did: did.did,
+          did: didInstance?.did || didString,
           address: wallet.address,
           privateKey: wallet.privateKey
         }
@@ -115,14 +162,24 @@ class DIDController {
         // Create wallet from private key
         const wallet = new ethers.Wallet(privateKey, this.provider);
         
-        // Create EthrDID instance
-        const did = new EthrDID({
-          identifier: wallet.address,
-          privateKey: privateKey.slice(2), // Remove '0x' prefix
-          provider: this.provider,
-          registry: '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b',
-          chainNameOrId: 'sepolia'
-        });
+        // Create DID string
+        const didString = `did:ethr:${wallet.address}`;
+        
+        // If EthrDID is available, use it
+        let didInstance = null;
+        if (didDependenciesAvailable && EthrDID) {
+          try {
+            didInstance = new EthrDID({
+              identifier: wallet.address,
+              privateKey: privateKey.slice(2), // Remove '0x' prefix
+              provider: this.provider,
+              registry: this.registry,
+              chainNameOrId: this.chainNameOrId
+            });
+          } catch (error) {
+            // Continue with basic DID string
+          }
+        }
 
         // Sign the feedback payload
         const payload = JSON.stringify(feedback);
@@ -132,7 +189,7 @@ class DIDController {
           success: true,
           data: {
             signedMessage,
-            did: did.did
+            did: didInstance?.did || didString
           }
         });
       } else {
@@ -147,14 +204,24 @@ class DIDController {
         // Create wallet from private key
         const wallet = new ethers.Wallet(privateKey, this.provider);
         
-        // Create EthrDID instance
-        const did = new EthrDID({
-          identifier: wallet.address,
-          privateKey: privateKey.slice(2), // Remove '0x' prefix
-          provider: this.provider,
-          registry: '0xdca7ef03e98e0dc2b855be647c39abe984fcf21b',
-          chainNameOrId: 'sepolia'
-        });
+        // Create DID string
+        const didString = `did:ethr:${wallet.address}`;
+        
+        // If EthrDID is available, use it
+        let didInstance = null;
+        if (didDependenciesAvailable && EthrDID) {
+          try {
+            didInstance = new EthrDID({
+              identifier: wallet.address,
+              privateKey: privateKey.slice(2), // Remove '0x' prefix
+              provider: this.provider,
+              registry: this.registry,
+              chainNameOrId: this.chainNameOrId
+            });
+          } catch (error) {
+            // Continue with basic DID string
+          }
+        }
 
         // Sign the message
         const signedMessage = await wallet.signMessage(message);
@@ -163,7 +230,7 @@ class DIDController {
           success: true,
           data: {
             signedMessage,
-            did: did.did
+            did: didInstance?.did || didString
           }
         });
       }

@@ -403,7 +403,7 @@ components:
           schema:
             type: integer
             default: 1
-          description: Token ID (default: 1 for CENT token)
+          description: Token ID to check (optional, defaults to 1 for CENT token)
       responses:
         '200':
           description: Balance retrieved successfully
@@ -421,6 +421,88 @@ components:
         '200':
           description: Token info retrieved successfully
 
+  /token/approve-all:
+    post:
+      summary: Approve or revoke approval for an operator (CRITICAL for staking)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - operator
+                - approved
+              properties:
+                operator:
+                  type: string
+                  description: Address of the operator to approve/revoke
+                  example: "0xbe12f7C25D130251d986772C12e9fF2eA71045dD"
+                approved:
+                  type: boolean
+                  description: true to approve, false to revoke
+      responses:
+        '200':
+          description: Approval updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      transactionHash:
+                        type: string
+                      blockNumber:
+                        type: integer
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /token/has-role/{role}/{address}:
+    get:
+      summary: Check if an address has a specific role
+      tags:
+        - Token
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+          description: Role hash (e.g., MINTER_ROLE, ADMIN_ROLE)
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Address to check
+      responses:
+        '200':
+          description: Role check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      hasRole:
+                        type: boolean
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
   /token/mint:
     post:
       summary: Mint tokens (requires MINTER_ROLE)
@@ -434,7 +516,6 @@ components:
               type: object
               required:
                 - to
-                - tokenId
                 - amount
               properties:
                 to:
@@ -442,7 +523,8 @@ components:
                   description: Address to mint tokens to
                 tokenId:
                   type: integer
-                  description: Token ID to mint
+                  default: 1
+                  description: Token ID to mint (optional, defaults to 1 for CENT token)
                 amount:
                   type: string
                   description: Amount to mint (in tokens, will be converted to wei)
@@ -629,6 +711,68 @@ components:
         '500':
           description: Server error
 
+  /token/grant-role:
+    post:
+      summary: Grant a role to an address (requires ADMIN_ROLE)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., MINTER_ROLE, ADMIN_ROLE)
+                account:
+                  type: string
+                  description: Address to grant role to
+      responses:
+        '200':
+          description: Role granted successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
+
+  /token/revoke-role:
+    post:
+      summary: Revoke a role from an address (requires ADMIN_ROLE)
+      tags:
+        - Token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., MINTER_ROLE, ADMIN_ROLE)
+                account:
+                  type: string
+                  description: Address to revoke role from
+      responses:
+        '200':
+          description: Role revoked successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
+
   /staking/stake:
     post:
       summary: Stake tokens
@@ -727,6 +871,121 @@ components:
       responses:
         '200':
           description: Contract info retrieved successfully
+
+  /staking/set-reward-duration:
+    post:
+      summary: Set reward duration (requires ADMIN_ROLE)
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - duration
+              properties:
+                duration:
+                  type: integer
+                  description: Reward duration in seconds
+      responses:
+        '200':
+          description: Reward duration set successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
+
+  /staking/has-role/{role}/{address}:
+    get:
+      summary: Check if an address has a specific role
+      tags:
+        - Staking
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+          description: Role hash (e.g., OPERATOR_ROLE, REWARDS_DISTRIBUTOR_ROLE)
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Address to check
+      responses:
+        '200':
+          description: Role check result
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /staking/grant-role:
+    post:
+      summary: Grant a role to an address (requires ADMIN_ROLE)
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., OPERATOR_ROLE, REWARDS_DISTRIBUTOR_ROLE)
+                account:
+                  type: string
+                  description: Address to grant role to
+      responses:
+        '200':
+          description: Role granted successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
+
+  /staking/revoke-role:
+    post:
+      summary: Revoke a role from an address (requires ADMIN_ROLE)
+      tags:
+        - Staking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., OPERATOR_ROLE, REWARDS_DISTRIBUTOR_ROLE)
+                account:
+                  type: string
+                  description: Address to revoke role from
+      responses:
+        '200':
+          description: Role revoked successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
 
   /staking/notify-reward:
     post:
@@ -1110,5 +1369,93 @@ components:
       responses:
         '200':
           description: Constants retrieved successfully
+        '500':
+          description: Server error
+
+  /persona/has-role/{role}/{address}:
+    get:
+      summary: Check if an address has a specific role
+      tags:
+        - Persona
+      parameters:
+        - in: path
+          name: role
+          required: true
+          schema:
+            type: string
+          description: Role hash (e.g., OPERATOR_ROLE, VERIFIER_ROLE)
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Address to check
+      responses:
+        '200':
+          description: Role check result
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+  /persona/grant-role:
+    post:
+      summary: Grant a role to an address (requires ADMIN_ROLE)
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., OPERATOR_ROLE, VERIFIER_ROLE)
+                account:
+                  type: string
+                  description: Address to grant role to
+      responses:
+        '200':
+          description: Role granted successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
+        '500':
+          description: Server error
+
+  /persona/revoke-role:
+    post:
+      summary: Revoke a role from an address (requires ADMIN_ROLE)
+      tags:
+        - Persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+                - account
+              properties:
+                role:
+                  type: string
+                  description: Role hash (e.g., OPERATOR_ROLE, VERIFIER_ROLE)
+                account:
+                  type: string
+                  description: Address to revoke role from
+      responses:
+        '200':
+          description: Role revoked successfully
+        '400':
+          description: Invalid request
+        '403':
+          description: Access denied - missing ADMIN_ROLE
         '500':
           description: Server error

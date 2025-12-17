@@ -19,8 +19,16 @@ async function getAccounts() {
     DIST_PUBLIC_KEY
   } = process.env;
 
-  // Get provider - for localhost, use JsonRpcProvider (ethers v6)
-  const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  // Get provider based on network
+  const network = process.env.NETWORK || 'localhost';
+  let provider;
+  if (network === 'fuji') {
+    provider = new ethers.JsonRpcProvider(process.env.FUJI_RPC_URL || 'https://api.avax-test.network/ext/bc/C/rpc');
+  } else if (network === 'avalanche') {
+    provider = new ethers.JsonRpcProvider(process.env.AVALANCHE_RPC_URL || 'https://api.avax.network/ext/bc/C/rpc');
+  } else {
+    provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+  }
   
   const accounts = {};
 
